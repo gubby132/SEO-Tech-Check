@@ -327,26 +327,32 @@ def assess_duplicate_content(df, _=None):
 
 def assess_page_titles(df, _=None):
     df = html_only(df)
+    if "Title 1" not in df.columns:
+        return None, "Title 1 column not found in export"
     issues = []
     missing = df[df["Title 1"].isna() | (df["Title 1"].astype(str).str.strip() == "")]
     dupes = df[df["Title 1"].duplicated(keep=False) & df["Title 1"].notna() & (df["Title 1"].astype(str).str.strip() != "")]
-    long_t = df[pd.to_numeric(df["Title 1 Length"], errors="coerce") > 60]
+    if "Title 1 Length" in df.columns:
+        long_t = df[pd.to_numeric(df["Title 1 Length"], errors="coerce") > 60]
+        if len(long_t): issues.append(f"{len(long_t)} over 60 chars")
     if len(missing): issues.append(f"{len(missing)} missing")
     if len(dupes): issues.append(f"{len(dupes)} duplicate")
-    if len(long_t): issues.append(f"{len(long_t)} over 60 chars")
     if not issues:
         return "G", "Page titles look good"
     return "R", " · ".join(issues)
 
 def assess_meta_descriptions(df, _=None):
     df = html_only(df)
+    if "Meta Description 1" not in df.columns:
+        return None, "Meta Description 1 column not found in export"
     issues = []
     missing = df[df["Meta Description 1"].isna() | (df["Meta Description 1"].astype(str).str.strip() == "")]
     dupes = df[df["Meta Description 1"].duplicated(keep=False) & df["Meta Description 1"].notna() & (df["Meta Description 1"].astype(str).str.strip() != "")]
-    long_m = df[pd.to_numeric(df["Meta Description 1 Length"], errors="coerce") > 155]
+    if "Meta Description 1 Length" in df.columns:
+        long_m = df[pd.to_numeric(df["Meta Description 1 Length"], errors="coerce") > 155]
+        if len(long_m): issues.append(f"{len(long_m)} over 155 chars")
     if len(missing): issues.append(f"{len(missing)} missing")
     if len(dupes): issues.append(f"{len(dupes)} duplicate")
-    if len(long_m): issues.append(f"{len(long_m)} over 155 chars")
     if not issues:
         return "G", "Meta descriptions look good"
     return "R", " · ".join(issues)
@@ -354,12 +360,15 @@ def assess_meta_descriptions(df, _=None):
 def assess_headings(df, _=None):
     df = html_only(df)
     issues = []
+    if "H1-1" not in df.columns:
+        return None, "H1-1 column not found in export"
     missing_h1 = df[df["H1-1"].isna() | (df["H1-1"].astype(str).str.strip() == "")]
     dupes_h1 = df[df["H1-1"].duplicated(keep=False) & df["H1-1"].notna() & (df["H1-1"].astype(str).str.strip() != "")]
-    multi_h1 = df[df["H1-2"].notna() & (df["H1-2"].astype(str).str.strip() != "")]
     if len(missing_h1): issues.append(f"{len(missing_h1)} missing H1")
     if len(dupes_h1): issues.append(f"{len(dupes_h1)} duplicate H1s")
-    if len(multi_h1): issues.append(f"{len(multi_h1)} multiple H1s")
+    if "H1-2" in df.columns:
+        multi_h1 = df[df["H1-2"].notna() & (df["H1-2"].astype(str).str.strip() != "")]
+        if len(multi_h1): issues.append(f"{len(multi_h1)} multiple H1s")
     if not issues:
         return "G", "Heading structure looks good"
     return "R", " · ".join(issues)
