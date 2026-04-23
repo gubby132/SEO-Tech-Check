@@ -160,7 +160,7 @@ def assess_url_structure(df):
     html_urls = html_only(df)["Address"].dropna().astype(str)
     issues = []
     spaces = html_urls[html_urls.str.contains("%20| ", regex=True)]
-    uppercase = html_urls[html_urls.str.contains(r'(?<=[a-zA-Z]{4}://[^/]{3,100}/)[A-Z]', regex=True)]
+    uppercase = html_urls[html_urls.apply(lambda u: any(c.isupper() for c in u.split("://", 1)[-1].split("/", 1)[-1] if c.isalpha()))]
     underscores = html_urls[html_urls.str.contains(r'/[^?#]*_[^?#]*', regex=True)]
     params = html_urls[html_urls.str.contains(r'\?', regex=True)]
     long_urls = html_urls[html_urls.str.len() > 115]
