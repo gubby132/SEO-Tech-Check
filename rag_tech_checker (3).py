@@ -34,6 +34,28 @@ h1, h2, h3 { font-family: 'Syne', sans-serif; }
 }
 .hero p { color: #9090b0; font-size: 0.85rem; margin: 0; }
 
+.upload-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+.upload-box {
+    background: #110920;
+    border: 1px dashed #3d2060;
+    border-radius: 10px;
+    padding: 1.2rem 1.5rem;
+}
+.upload-box-label {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #e040fb;
+    margin-bottom: 0.5rem;
+}
+.upload-note { font-size: 0.78rem; color: #505070; margin-top: 0.4rem; }
+
 .rag-col {
     background: #110920;
     border: 1px solid #2a1a40;
@@ -41,7 +63,6 @@ h1, h2, h3 { font-family: 'Syne', sans-serif; }
     overflow: hidden;
     height: fit-content;
 }
-
 .col-header {
     font-family: 'Syne', sans-serif;
     font-size: 0.75rem;
@@ -53,7 +74,6 @@ h1, h2, h3 { font-family: 'Syne', sans-serif; }
     padding: 0.8rem 1.2rem;
     border-bottom: 1px solid #2a1a40;
 }
-
 .section-header {
     font-family: 'Syne', sans-serif;
     font-size: 0.65rem;
@@ -66,7 +86,6 @@ h1, h2, h3 { font-family: 'Syne', sans-serif; }
     border-bottom: 1px solid #1a1a30;
     border-top: 1px solid #1a1a30;
 }
-
 .rag-row {
     display: flex;
     align-items: center;
@@ -77,12 +96,7 @@ h1, h2, h3 { font-family: 'Syne', sans-serif; }
 }
 .rag-row:last-child { border-bottom: none; }
 .rag-row:hover { background: #13132a; }
-
-.rag-label {
-    font-size: 0.82rem;
-    color: #c0c0d8;
-    flex: 1;
-}
+.rag-label { font-size: 0.82rem; color: #c0c0d8; flex: 1; }
 
 .pill {
     display: inline-flex;
@@ -111,40 +125,56 @@ h1, h2, h3 { font-family: 'Syne', sans-serif; }
     align-items: center;
 }
 .score-item { text-align: center; }
-.score-num {
-    font-family: 'Syne', sans-serif;
-    font-size: 2.5rem;
-    font-weight: 800;
-    line-height: 1;
-}
+.score-num { font-family: 'Syne', sans-serif; font-size: 2.5rem; font-weight: 800; line-height: 1; }
 .score-pass { color: #27ae60; }
 .score-fail { color: #c0392b; }
 .score-na { color: #404060; }
 .score-label { font-size: 0.75rem; color: #6060a0; margin-top: 0.3rem; letter-spacing: 0.1em; text-transform: uppercase; }
-.upload-note { font-size: 0.8rem; color: #606080; margin-top: 0.5rem; }
 </style>
 """, unsafe_allow_html=True)
 
 st.markdown("""
 <div class="hero">
     <h1>SEO RAG Tech Checker</h1>
-    <p>Upload a Screaming Frog Internal All export (CSV) to generate a RAG status table across structure, indexation, technical, and on-page elements.</p>
+    <p>Upload both Screaming Frog exports below to generate a full RAG status table. Internal All is required; Issues Overview unlocks Images, Structured Data and Open Graph checks.</p>
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown("### Upload Screaming Frog Internal All Export")
-uploaded = st.file_uploader("Internal All CSV", type=["csv"], label_visibility="collapsed")
-st.markdown('<p class="upload-note">In Screaming Frog: Internal tab → Export. Ensure Crawl Depth column is visible before exporting.</p>', unsafe_allow_html=True)
+# ── Uploads ───────────────────────────────────────────────────────────────────
+col1, col2 = st.columns(2)
+
+with col1:
+    st.markdown('<p style="font-family:Syne,sans-serif;font-size:0.7rem;letter-spacing:0.12em;text-transform:uppercase;color:#e040fb;margin-bottom:0.3rem;">Internal All Export (required)</p>', unsafe_allow_html=True)
+    uploaded_internal = st.file_uploader("Internal All", type=["csv"], label_visibility="collapsed", key="internal")
+    st.markdown('<p class="upload-note">Screaming Frog: Internal tab → Export. Ensure Crawl Depth is a visible column.</p>', unsafe_allow_html=True)
+
+with col2:
+    st.markdown('<p style="font-family:Syne,sans-serif;font-size:0.7rem;letter-spacing:0.12em;text-transform:uppercase;color:#e040fb;margin-bottom:0.3rem;">Issues Overview Export (optional)</p>', unsafe_allow_html=True)
+    uploaded_issues = st.file_uploader("Issues Overview", type=["csv"], label_visibility="collapsed", key="issues")
+    st.markdown('<p class="upload-note">Screaming Frog: Issues tab → Export. Enables Images, Structured Data and Open Graph checks.</p>', unsafe_allow_html=True)
 
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
 def html_only(df):
     return df[df["Content Type"].str.contains("text/html", na=False)]
 
+def load_issues_lookup(issues_df):
+    """Return dict of issue name -> URL count from issues overview export."""
+    issues_df.columns = [c.strip().strip('"').lstrip('\ufeff') for c in issues_df.columns]
+    issue_col = next((c for c in issues_df.columns if c.lower() in ["issue name", "issuename"]), None)
+    urls_col = next((c for c in issues_df.columns if c.lower() in ["urls", "url count", "count"]), None)
+    if not issue_col or not urls_col:
+        return {}
+    issues_df[urls_col] = pd.to_numeric(issues_df[urls_col], errors="coerce").fillna(0)
+    return dict(zip(issues_df[issue_col].str.strip(), issues_df[urls_col]))
 
-def assess_site_hierarchy(df):
+
+# ── Assessment functions (internal_df) ────────────────────────────────────────
+def assess_site_hierarchy(df, _=None):
     df = html_only(df)
     if "Crawl Depth" not in df.columns:
-        return None, "Crawl Depth column not found"
+        return None, "Crawl Depth column not found - ensure it is visible before exporting"
+    df = df.copy()
     df["Crawl Depth"] = pd.to_numeric(df["Crawl Depth"], errors="coerce")
     deep = df[df["Crawl Depth"] > 4]
     total = len(df)
@@ -155,12 +185,13 @@ def assess_site_hierarchy(df):
         return "G", "All pages within crawl depth 4"
     return "R", f"{len(deep)} pages beyond crawl depth 4 ({pct:.0%})"
 
-
-def assess_url_structure(df):
+def assess_url_structure(df, _=None):
     html_urls = html_only(df)["Address"].dropna().astype(str)
     issues = []
     spaces = html_urls[html_urls.str.contains("%20| ", regex=True)]
-    uppercase = html_urls[html_urls.apply(lambda u: any(c.isupper() for c in u.split("://", 1)[-1].split("/", 1)[-1] if c.isalpha()))]
+    uppercase = html_urls[html_urls.apply(
+        lambda u: any(c.isupper() for c in u.split("://", 1)[-1].split("/", 1)[-1] if c.isalpha())
+    )]
     underscores = html_urls[html_urls.str.contains(r'/[^?#]*_[^?#]*', regex=True)]
     params = html_urls[html_urls.str.contains(r'\?', regex=True)]
     long_urls = html_urls[html_urls.str.len() > 115]
@@ -173,31 +204,26 @@ def assess_url_structure(df):
         return "G", "No URL structure issues detected"
     return "R", " · ".join(issues)
 
-
-def assess_security(df):
+def assess_security(df, _=None):
     http = df[df["Address"].str.startswith("http://", na=False)]
     if len(http) > 0:
         return "R", f"{len(http)} pages on HTTP"
     return "G", "All pages on HTTPS"
 
-
-def assess_robots(df):
+def assess_robots(df, _=None):
     df = html_only(df)
     noindex = df[df["Meta Robots 1"].str.contains("noindex", na=False, case=False)]
     if len(noindex) > 0:
         return "R", f"{len(noindex)} pages with noindex directive"
     return "G", "No unexpected noindex directives"
 
-
-def assess_sitemaps(df):
+def assess_sitemaps(df, _=None):
     return None, "Requires manual check"
 
-
-def assess_breadcrumbs(df):
+def assess_breadcrumbs(df, _=None):
     return None, "Requires manual assessment"
 
-
-def assess_canonical_issues(df):
+def assess_canonical_issues(df, _=None):
     df = html_only(df)
     if "Canonical Link Element 1" not in df.columns:
         return None, "Canonical column not found"
@@ -214,8 +240,7 @@ def assess_canonical_issues(df):
         return "G", "Canonicals present and self-referencing"
     return "R", " · ".join(issues)
 
-
-def assess_page_duplication(df):
+def assess_page_duplication(df, _=None):
     df = html_only(df)
     if "Hash" not in df.columns:
         return None, "Hash column not found"
@@ -224,8 +249,7 @@ def assess_page_duplication(df):
         return "R", f"{len(dupes)} pages with duplicate content"
     return "G", "No duplicate pages detected"
 
-
-def assess_www_non_www(df):
+def assess_www_non_www(df, _=None):
     redirects = df[df["Status Code"].astype(str).str.startswith("3")]
     non_www_to_www = redirects[
         ~redirects["Address"].str.contains("://www.", na=False) &
@@ -233,36 +257,33 @@ def assess_www_non_www(df):
     ]
     if len(non_www_to_www) > 0:
         return "G", "Non-www redirects to www correctly"
-    non_www = df[~df["Address"].str.contains("://www.", na=False) & df["Address"].str.startswith("https://", na=False)]
+    non_www = df[
+        ~df["Address"].str.contains("://www.", na=False) &
+        df["Address"].str.startswith("https://", na=False)
+    ]
     if len(non_www) > 1:
         return "R", "Both www and non-www versions may be accessible"
     return "G", "Single www version detected"
 
-
-def assess_http_https(df):
+def assess_http_https(df, _=None):
     http_pages = df[df["Address"].str.startswith("http://", na=False)]
     if len(http_pages) > 0:
         return "R", f"{len(http_pages)} HTTP URLs in crawl"
     return "G", "All URLs use HTTPS"
 
-
-def assess_cwv(df):
+def assess_cwv(df, _=None):
     return None, "Requires PageSpeed Insights or GSC data"
 
-
-def assess_js_rendering(df):
+def assess_js_rendering(df, _=None):
     return None, "Requires manual assessment"
 
-
-def assess_mobile_friendly(df):
+def assess_mobile_friendly(df, _=None):
     return None, "Requires Google Mobile-Friendly Test or GSC"
 
-
-def assess_page_speed(df):
+def assess_page_speed(df, _=None):
     return None, "Requires PageSpeed Insights data"
 
-
-def assess_error_messages(df):
+def assess_error_messages(df, _=None):
     df_html = html_only(df)
     errors_4xx = df_html[df_html["Status Code"].astype(str).str.startswith("4")]
     errors_5xx = df_html[df_html["Status Code"].astype(str).str.startswith("5")]
@@ -273,16 +294,14 @@ def assess_error_messages(df):
         return "G", "No 4xx or 5xx errors"
     return "R", " · ".join(issues)
 
-
-def assess_internal_redirects(df):
+def assess_internal_redirects(df, _=None):
     df_html = html_only(df)
     redirects = df_html[df_html["Status Code"].astype(str).str.startswith("3")]
     if len(redirects) > 0:
         return "R", f"{len(redirects)} internal redirects detected"
     return "G", "No internal redirects"
 
-
-def assess_response_codes(df):
+def assess_response_codes(df, _=None):
     df_html = html_only(df)
     non_200 = df_html[~df_html["Status Code"].astype(str).str.startswith("2")]
     if len(non_200) > 0:
@@ -291,12 +310,10 @@ def assess_response_codes(df):
         return "R", summary
     return "G", "All pages return 2xx"
 
-
-def assess_duplicate_sites(df):
+def assess_duplicate_sites(df, _=None):
     return None, "Requires manual check"
 
-
-def assess_duplicate_content(df):
+def assess_duplicate_content(df, _=None):
     df = html_only(df)
     if "No. Near Duplicates" not in df.columns:
         return None, "Near Duplicates column not found"
@@ -305,8 +322,7 @@ def assess_duplicate_content(df):
         return "R", f"{len(dupes)} pages with near-duplicate content"
     return "G", "No near-duplicate content detected"
 
-
-def assess_page_titles(df):
+def assess_page_titles(df, _=None):
     df = html_only(df)
     issues = []
     missing = df[df["Title 1"].isna() | (df["Title 1"].astype(str).str.strip() == "")]
@@ -319,8 +335,7 @@ def assess_page_titles(df):
         return "G", "Page titles look good"
     return "R", " · ".join(issues)
 
-
-def assess_meta_descriptions(df):
+def assess_meta_descriptions(df, _=None):
     df = html_only(df)
     issues = []
     missing = df[df["Meta Description 1"].isna() | (df["Meta Description 1"].astype(str).str.strip() == "")]
@@ -333,8 +348,7 @@ def assess_meta_descriptions(df):
         return "G", "Meta descriptions look good"
     return "R", " · ".join(issues)
 
-
-def assess_headings(df):
+def assess_headings(df, _=None):
     df = html_only(df)
     issues = []
     missing_h1 = df[df["H1-1"].isna() | (df["H1-1"].astype(str).str.strip() == "")]
@@ -347,12 +361,7 @@ def assess_headings(df):
         return "G", "Heading structure looks good"
     return "R", " · ".join(issues)
 
-
-def assess_images(df):
-    return None, "Requires Images tab export for alt text assessment"
-
-
-def assess_links(df):
+def assess_links(df, _=None):
     df = html_only(df)
     if "Inlinks" not in df.columns:
         return None, "Inlinks column not found"
@@ -361,8 +370,7 @@ def assess_links(df):
         return "R", f"{len(orphans)} orphan pages (0 inlinks)"
     return "G", "No orphan pages detected"
 
-
-def assess_indexation(df):
+def assess_indexation(df, _=None):
     df = html_only(df)
     non_indexable = df[df["Indexability"].astype(str).str.lower() == "non-indexable"]
     if len(non_indexable) > 0:
@@ -372,14 +380,35 @@ def assess_indexation(df):
     return "G", "All pages indexable"
 
 
-def assess_structured_data(df):
+# ── Assessment functions (issues_lookup) ──────────────────────────────────────
+def assess_images(df, issues_lookup):
+    if not issues_lookup:
+        return None, "Upload Issues Overview export to enable this check"
+    issues = []
+    alt_missing = int(issues_lookup.get("Images: Missing Alt Text", 0))
+    oversized = int(issues_lookup.get("Images: Over 100 KB", 0))
+    missing_size = int(issues_lookup.get("Images: Missing Size Attributes", 0))
+    if alt_missing: issues.append(f"{alt_missing} images missing alt text")
+    if oversized: issues.append(f"{oversized} images over 100KB")
+    if missing_size: issues.append(f"{missing_size} missing size attributes")
+    if not issues:
+        return "G", "No image issues detected"
+    return "R", " · ".join(issues)
+
+def assess_structured_data(df, issues_lookup):
+    if not issues_lookup:
+        return None, "Upload Issues Overview export to enable this check"
+    # SF doesn't report structured data errors directly in issues - manual check needed
     return None, "Requires manual assessment or schema validator"
 
+def assess_open_graph(df, issues_lookup):
+    if not issues_lookup:
+        return None, "Upload Issues Overview export to enable this check"
+    # OG tags not directly in SF issues export
+    return None, "Requires manual assessment or OG tag crawl configuration in SF"
 
-def assess_open_graph(df):
-    return None, "Requires manual assessment or OG tag crawl"
 
-
+# ── Layout ────────────────────────────────────────────────────────────────────
 COLUMNS = [
     {
         "title": "Structure & Indexation",
@@ -460,21 +489,36 @@ COLUMNS = [
     },
 ]
 
-if uploaded:
+# ── Run ───────────────────────────────────────────────────────────────────────
+if uploaded_internal:
     try:
-        df = pd.read_csv(uploaded, low_memory=False)
+        df = pd.read_csv(uploaded_internal, low_memory=False)
     except Exception as e:
-        st.error(f"Could not read file: {e}")
+        st.error(f"Could not read Internal All file: {e}")
         st.stop()
 
     df.columns = [c.strip().strip('"').lstrip('\ufeff') for c in df.columns]
-    st.markdown(f'<p class="upload-note">Loaded {len(df):,} rows · {len(df.columns)} columns</p>', unsafe_allow_html=True)
+
+    issues_lookup = {}
+    if uploaded_issues:
+        try:
+            issues_df = pd.read_csv(uploaded_issues, low_memory=False)
+            issues_lookup = load_issues_lookup(issues_df)
+        except Exception as e:
+            st.warning(f"Could not read Issues Overview file: {e}")
+
+    status_line = f"Internal All: {len(df):,} rows loaded"
+    if issues_lookup:
+        status_line += f" · Issues Overview: {len(issues_lookup)} issues loaded"
+    else:
+        status_line += " · Issues Overview: not uploaded (Images check disabled)"
+    st.markdown(f'<p style="font-size:0.78rem;color:#505070;margin-bottom:1rem;">{status_line}</p>', unsafe_allow_html=True)
 
     all_results = []
     for col in COLUMNS:
         for section in col["sections"]:
             for name, fn in section["items"]:
-                status, note = fn(df)
+                status, note = fn(df, issues_lookup)
                 all_results.append({
                     "column": col["title"],
                     "section": section["label"],
@@ -506,10 +550,7 @@ if uploaded:
                 html += f'<div class="section-header">{section["label"]}</div>'
                 for name, _ in section["items"]:
                     r = result_lookup[name]
-                    html += f'''<div class="rag-row">
-                        <span class="rag-label">{name}</span>
-                        {pill_html(r["status"])}
-                    </div>'''
+                    html += f'<div class="rag-row"><span class="rag-label">{name}</span>{pill_html(r["status"])}</div>'
             html += '</div>'
             st.markdown(html, unsafe_allow_html=True)
 
@@ -559,6 +600,6 @@ if uploaded:
 else:
     st.markdown("""
     <div style="border:1px dashed #2a2a45;border-radius:10px;padding:3rem;text-align:center;color:#404060;margin-top:1rem;">
-        <p style="font-family:'Syne',sans-serif;font-size:1.1rem;margin:0;">Upload a Screaming Frog Internal All CSV to generate your RAG table</p>
+        <p style="font-family:'Syne',sans-serif;font-size:1.1rem;margin:0;">Upload the Internal All CSV above to generate your RAG table</p>
     </div>
     """, unsafe_allow_html=True)
