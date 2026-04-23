@@ -156,6 +156,8 @@ with col2:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def html_only(df):
+    df = df.copy()
+    df["Content Type"] = df["Content Type"].astype(str)
     return df[df["Content Type"].str.contains("text/html", na=False)]
 
 def load_issues_lookup(issues_df):
@@ -211,7 +213,8 @@ def assess_security(df, _=None):
     return "G", "All pages on HTTPS"
 
 def assess_robots(df, _=None):
-    df = html_only(df)
+    df = html_only(df).copy()
+    df["Meta Robots 1"] = df["Meta Robots 1"].astype(str)
     noindex = df[df["Meta Robots 1"].str.contains("noindex", na=False, case=False)]
     if len(noindex) > 0:
         return "R", f"{len(noindex)} pages with noindex directive"
@@ -371,8 +374,9 @@ def assess_links(df, _=None):
     return "G", "No orphan pages detected"
 
 def assess_indexation(df, _=None):
-    df = html_only(df)
-    non_indexable = df[df["Indexability"].astype(str).str.lower() == "non-indexable"]
+    df = html_only(df).copy()
+    df["Indexability"] = df["Indexability"].astype(str)
+    non_indexable = df[df["Indexability"].str.lower() == "non-indexable"]
     if len(non_indexable) > 0:
         reasons = non_indexable["Indexability Status"].value_counts().to_dict()
         summary = " · ".join([f"{v}x {k}" for k, v in reasons.items()])
